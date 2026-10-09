@@ -12,6 +12,11 @@ import java.util.*
 
 class KheloBDRepository private constructor() {
 
+  // Fail closed: real-money actions require a server-side ledger and verified transactions.
+  private fun moneyServerUnavailable(): Result<String> = Result.failure(
+    IllegalStateException("নিরাপদ server-side wallet ও payment verification চালু না হওয়া পর্যন্ত টাকা লেনদেন সাময়িক বন্ধ আছে।")
+  )
+
   private val remoteClient = ApiStateClient()
   private val remoteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   @Volatile private var remoteReady = false
@@ -261,6 +266,12 @@ class KheloBDRepository private constructor() {
     val user = _currentUser.value
     val tournament = _tournaments.value.find { it.id == tournamentId }
       ?: return Result.failure(Exception("টুর্নামেন্ট পাওয়া যায়নি!"))
+    if (tournament.entryFee > 0.0 || tournament.prizePool > 0.0 ||
+        tournament.perKillPrize > 0.0 || tournament.prizePlace1 > 0.0 ||
+        tournament.prizePlace2 > 0.0 || tournament.prizePlace3 > 0.0 ||
+        tournament.prizePlace4 > 0.0 || tournament.prizePlace5 > 0.0) {
+      return moneyServerUnavailable()
+    }
 
     if (tournament.status == TournamentStatus.FINISHED) {
       return Result.failure(Exception("এই টুর্নামেন্টটি সমাপ্ত হয়ে গেছে!"))
@@ -392,6 +403,7 @@ class KheloBDRepository private constructor() {
     targetOpponentId: String? = null,
     targetOpponentName: String? = null
   ): Result<String> {
+    if (amount > 0.0) return moneyServerUnavailable()
     val user = _currentUser.value
 
     // RULE: এক সাথে একজনের একটির বেশি একটিভ চ্যালেঞ্জ চলতে পারবে না (শেষ বা ক্যান্সেল না হওয়া পর্যন্ত ২য় চ্যালেঞ্জ দেওয়া যাবে না)
@@ -470,6 +482,7 @@ class KheloBDRepository private constructor() {
   fun acceptChallenge(challengeId: String): Result<String> {
     val challenge = _challenges.value.find { it.id == challengeId }
       ?: return Result.failure(Exception("চ্যালেঞ্জটি পাওয়া যায়নি!"))
+    if (challenge.amount > 0.0) return moneyServerUnavailable()
 
     val user = _currentUser.value
     if (challenge.challengerId == user.id) {
@@ -535,6 +548,7 @@ class KheloBDRepository private constructor() {
   fun cancelChallenge(challengeId: String): Result<String> {
     val challenge = _challenges.value.find { it.id == challengeId }
       ?: return Result.failure(Exception("চ্যালেঞ্জ পাওয়া যায়নি!"))
+    if (challenge.amount > 0.0) return moneyServerUnavailable()
 
     val user = _currentUser.value
     if (challenge.challengerId != user.id && !user.isAdmin) {
@@ -571,11 +585,7 @@ class KheloBDRepository private constructor() {
   private fun expireChallenge(challengeId: String) {
     val challenge = _challenges.value.find { it.id == challengeId } ?: return
     if (challenge.status == ChallengeStatus.OPEN) {
-      if (challenge.challengerId == _currentUser.value.id) {
-        _currentUser.value = _currentUser.value.copy(
-          walletBalance = _currentUser.value.walletBalance + challenge.amount
-        )
-      }
+      // Refunds require a server-side ledger transaction; do not credit locally here.
       _challenges.value = _challenges.value.map {
         if (it.id == challengeId) it.copy(status = ChallengeStatus.EXPIRED) else it
       }
@@ -616,6 +626,7 @@ class KheloBDRepository private constructor() {
   fun settleChallenge(challengeId: String, winnerId: String): Result<String> {
     val challenge = _challenges.value.find { it.id == challengeId }
       ?: return Result.failure(Exception("চ্যালেঞ্জ পাওয়া যায়নি!"))
+    if (challenge.amount > 0.0) return moneyServerUnavailable()
 
     val totalPot = challenge.amount * 2.0
     val platformFee = totalPot * 0.20 // 20% platform fee
@@ -663,6 +674,7 @@ class KheloBDRepository private constructor() {
   }
 
   fun teamDeposit(teamId: String, amount: Double): Result<String> {
+    if (amount > 0.0) return moneyServerUnavailable()
     if (amount <= 0) return Result.failure(Exception("সঠিক ডিপোজিট পরিমাণ প্রদান করুন!"))
     val user = _currentUser.value
     if (user.walletBalance < amount) {
@@ -678,6 +690,7 @@ class KheloBDRepository private constructor() {
   }
 
   fun teamWithdraw(teamId: String, amount: Double): Result<String> {
+    if (amount > 0.0) return moneyServerUnavailable()
     // Check 7PM - 11PM withdraw rule
     if (!isWithinWithdrawWindow()) {
       return Result.failure(Exception("উইথড্র করার নির্ধারিত সময় সন্ধ্যা ৭:০০ টা থেকে রাত ১১:০০ টা পর্যন্ত। এই সময়ের বাইরে উইথড্র বন্ধ থাকবে।"))
@@ -709,6 +722,7 @@ class KheloBDRepository private constructor() {
     game: String,
     amount: Double
   ): Result<String> {
+    if (amount > 0.0) return moneyServerUnavailable()
     val challengerTeam = _teams.value.find { it.id == challengerTeamId }
       ?: return Result.failure(Exception("আপনার টিম পাওয়া যায়নি!"))
 
@@ -982,6 +996,8 @@ class KheloBDRepository private constructor() {
 
   // --- Wallet Operations ---
   fun requestDeposit(method: String, amount: Double, trxId: String): Result<String> {
+    // A client-submitted TrxID is not proof of payment; never credit the wallet locally.
+    return moneyServerUnavailable()
     if (amount < 50.0) {
       return Result.failure(Exception("সর্বনিম্ন ডিপোজিট ৫০ টাকা!"))
     }
@@ -1015,6 +1031,7 @@ class KheloBDRepository private constructor() {
   }
 
   fun requestWithdraw(method: String, number: String, amount: Double): Result<String> {
+    return moneyServerUnavailable()
     if (!isWithinWithdrawWindow()) {
       return Result.failure(Exception("উইথড্র করার নির্ধারিত সময় সন্ধ্যা ৭:০০ টা থেকে রাত ১১:০০ টা পর্যন্ত। দয়া করে নির্ধারিত সময়ে উইথড্র করুন।"))
     }
@@ -1061,6 +1078,8 @@ class KheloBDRepository private constructor() {
     amount: Double,
     transactionId: String
   ): Result<String> {
+    // Deposit requests must be created and verified by the secured backend, not shared app state.
+    return moneyServerUnavailable()
     if (amount < 50.0) {
       return Result.failure(Exception("সর্বনিম্ন ডিপোজিট ৫০ টাকা!"))
     }
@@ -1117,6 +1136,8 @@ class KheloBDRepository private constructor() {
   }
 
   fun approveDepositRequest(requestId: String): Result<String> {
+    // Client-side approvals must never credit a wallet.
+    return moneyServerUnavailable()
     val req = _depositRequests.value.find { it.id == requestId }
       ?: return Result.failure(Exception("ডিপোজিট রিকোয়েস্ট পাওয়া যায়নি!"))
 
