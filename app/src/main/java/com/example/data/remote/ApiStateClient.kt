@@ -9,6 +9,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
+data class StateLoadResult(val successful: Boolean, val state: RemoteAppState?)
+
 class ApiStateClient(
     private val baseUrl: String = BuildConfig.KHELO_API_BASE_URL
 ) {
@@ -22,7 +24,7 @@ class ApiStateClient(
 
     private val mediaType = "application/json; charset=utf-8".toMediaType()
 
-    fun load(): RemoteAppState? {
+    fun loadResult(): StateLoadResult {
         return runCatching {
             val request = Request.Builder()
                 .url("${baseUrl.trimEnd('/')}/api.php?action=state")
@@ -30,12 +32,23 @@ class ApiStateClient(
                 .get()
                 .build()
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val body = response.body?.string() ?: return null
-                val envelope = moshi.adapter(StateEnvelope::class.java).fromJson(body)
-                envelope?.state
+                if (!response.isSuccessful) {
+                    StateLoadResult(successful = false, state = null)
+                } else {
+                    val body = response.body?.string()
+                    if (body.isNullOrBlank()) {
+                        StateLoadResult(successful = false, state = null)
+                    } else {
+                        val envelope = moshi.adapter(StateEnvelope::class.java).fromJson(body)
+                        if (envelope?.ok == true) {
+                            StateLoadResult(successful = true, state = envelope.state)
+                        } else {
+                            StateLoadResult(successful = false, state = null)
+                        }
+                    }
+                }
             }
-        }.getOrNull()
+        }.getOrElse { StateLoadResult(successful = false, state = null) }
     }
 
     fun save(state: RemoteAppState): Boolean {
