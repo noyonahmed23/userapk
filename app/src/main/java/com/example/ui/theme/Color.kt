@@ -27,3 +27,6 @@ val Purple40 = CyberOrange
 val PurpleGrey40 = CyberCyan
 val Pink40 = CyberGreen
 
+
+// Blue accent color used by the deposit screen.
+val CyberBlue = Color(0xFF2979FF)
