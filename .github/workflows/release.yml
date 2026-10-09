@@ -1,4 +1,5 @@
 name: Signed Release APK
+# Rebuild signed release artifacts after wallet safety guards and admin access checks.
 
 on:
   workflow_dispatch:
