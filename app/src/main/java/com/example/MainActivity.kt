@@ -775,7 +775,7 @@ fun KheloBDApp() {
               onNavigateToNotifications = { showNotificationsDialog = true },
               onNavigateToDeposit = { currentScreen = Screen.ACCOUNT },
               onLogout = {
-                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
                 currentScreen = Screen.HOME
               }
             )
