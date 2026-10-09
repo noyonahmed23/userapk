@@ -376,9 +376,9 @@ fun AuthScreen(
                         id = firebaseUser?.uid ?: "user_${System.currentTimeMillis()}",
                         username = username.trim(),
                         fullName = fullName.trim(),
-                        phone = phone.trim().ifBlank { "01798123456" },
+                        phone = phone.trim(),
                         email = trimmedEmail,
-                        walletBalance = 0.0
+                        walletBalance = 0.0,
                         isOnline = true,
                         matchesPlayed = 0,
                         wins = 0,
