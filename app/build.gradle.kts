@@ -19,8 +19,9 @@ android {
     versionCode = 1
     versionName = "1.0"
 
-    buildConfigField("String", "KHELO_API_BASE_URL", '"https://nexuscom.page.gd/khelobdapp-api"')
-    buildConfigField("String", "KHELO_API_KEY", '"KBD_2026_8f3d1c7a9e42b6f1"')
+   
+buildConfigField("String", "KHELO_API_BASE_URL", "\"https://nexuscom.page.gd/khelobdapp-api/\"")
+buildConfigField("String", "KHELO_API_KEY", "\"KBD_2026_8f3d1c7a9e42b6f1\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
