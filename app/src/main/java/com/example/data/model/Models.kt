@@ -207,10 +207,10 @@ data class BannerSlide(
 )
 
 data class PaymentMethodSettings(
-  val bkashNumber: String = "01798123456",
-  val nagadNumber: String = "01798123456",
-  val bkashInstruction: String = "বিকাশ অ্যাপ থেকে 'Send Money' করুন এবং নিচের ফর্মটিতে সঠিক TrxID ও নম্বর প্রদান করুন।",
-  val nagadInstruction: String = "নগদ অ্যাপ থেকে 'Send Money' করুন এবং নিচের ফর্মটিতে সঠিক TrxID ও নম্বর প্রদান করুন।"
+  val bkashNumber: String = "",
+  val nagadNumber: String = "",
+  val bkashInstruction: String = "এডমিন কর্তৃক বিকাশ পেমেন্ট নম্বর সেট করা হয়নি।",
+  val nagadInstruction: String = "এডমিন কর্তৃক নগদ পেমেন্ট নম্বর সেট করা হয়নি।"
 )
 
 enum class DepositWalletType(val labelBn: String) {
