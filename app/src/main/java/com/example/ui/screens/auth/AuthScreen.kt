@@ -449,9 +449,20 @@ fun AuthScreen(
                 errorMessage = null
                 try {
                   val credentialManager = CredentialManager.create(context)
+                  val clientIdResourceId = context.resources.getIdentifier(
+                    "default_web_client_id", "string", context.packageName
+                  )
+                  val serverClientId = if (clientIdResourceId != 0) {
+                    context.getString(clientIdResourceId).takeIf { it.isNotBlank() }
+                  } else {
+                    null
+                  } ?: throw IllegalStateException(
+                    "Firebase google-services.json-এর default_web_client_id পাওয়া যায়নি।"
+                  )
+
                   val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId("dummy-client-id.apps.googleusercontent.com")
+                    .setServerClientId(serverClientId)
                     .setAutoSelectEnabled(true)
                     .build()
 
