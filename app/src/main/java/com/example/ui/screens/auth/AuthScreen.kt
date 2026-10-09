@@ -350,15 +350,15 @@ fun AuthScreen(
                         id = firebaseUser?.uid ?: "user_${System.currentTimeMillis()}",
                         username = firebaseUser?.displayName ?: trimmedEmail.substringBefore("@"),
                         fullName = firebaseUser?.displayName ?: trimmedEmail.substringBefore("@"),
-                        phone = phone.ifBlank { "01798123456" },
+                        phone = phone.trim(),
                         email = trimmedEmail,
-                        walletBalance = 450.0,
+                        walletBalance = 0.0,
                         isOnline = true,
-                        matchesPlayed = 48,
-                        wins = 32,
-                        totalEarnings = 4250.0,
-                        freeFireUid = "548291048",
-                        pubgUid = "5148209421",
+                        matchesPlayed = 0,
+                        wins = 0,
+                        totalEarnings = 0.0,
+                        freeFireUid = "",
+                        pubgUid = "",
                         isAdmin = false
                       )
                       isLoading = false
@@ -378,7 +378,7 @@ fun AuthScreen(
                         fullName = fullName.trim(),
                         phone = phone.trim().ifBlank { "01798123456" },
                         email = trimmedEmail,
-                        walletBalance = 100.0, // Welcome bonus
+                        walletBalance = 0.0
                         isOnline = true,
                         matchesPlayed = 0,
                         wins = 0,
@@ -391,24 +391,9 @@ fun AuthScreen(
                       onAuthSuccess(user)
                     }
                   } else {
-                    // Fallback local authentication simulation if Firebase is not linked
-                    val user = UserProfile(
-                      id = "user_${System.currentTimeMillis()}",
-                      username = if (isLoginMode) trimmedEmail.substringBefore("@") else username.trim(),
-                      fullName = if (isLoginMode) trimmedEmail.substringBefore("@") else fullName.trim(),
-                      phone = phone.trim().ifBlank { "01798123456" },
-                      email = trimmedEmail,
-                      walletBalance = 450.0,
-                      isOnline = true,
-                      matchesPlayed = 12,
-                      wins = 8,
-                      totalEarnings = 1200.0,
-                      freeFireUid = "548291048",
-                      pubgUid = "",
-                      isAdmin = false
+                    throw IllegalStateException(
+                      "Firebase Authentication সেটআপ নেই। নিরাপদ লগইন ছাড়া অ্যাকাউন্ট খোলা যাবে না।"
                     )
-                    isLoading = false
-                    onAuthSuccess(user)
                   }
                 } catch (e: Exception) {
                   isLoading = false
@@ -492,60 +477,31 @@ fun AuthScreen(
                       id = firebaseUser?.uid ?: "user_g_${System.currentTimeMillis()}",
                       username = firebaseUser?.displayName?.replace(" ", "_") ?: "Google_Player",
                       fullName = firebaseUser?.displayName ?: "Google Player",
-                      phone = "01798123456",
-                      email = firebaseUser?.email ?: "google@khelobd.com",
-                      walletBalance = 350.0,
+                      phone = "",
+                      email = firebaseUser?.email ?: "",
+                      walletBalance = 0.0,
                       isOnline = true,
-                      matchesPlayed = 20,
-                      wins = 14,
-                      totalEarnings = 1800.0,
-                      freeFireUid = "548291048",
+                      matchesPlayed = 0,
+                      wins = 0,
+                      totalEarnings = 0.0,
+                      freeFireUid = "",
                       pubgUid = "",
                       isAdmin = false
                     )
                     isLoading = false
                     onAuthSuccess(user)
                   } else {
-                    isLoading = false
-                    val user = UserProfile(
-                      id = "user_g_${System.currentTimeMillis()}",
-                      username = googleIdTokenCredential.displayName?.replace(" ", "_") ?: "Google_Player",
-                      fullName = googleIdTokenCredential.displayName ?: "Google Player",
-                      phone = "01798123456",
-                      email = googleIdTokenCredential.id,
-                      walletBalance = 350.0,
-                      isOnline = true,
-                      matchesPlayed = 20,
-                      wins = 14,
-                      totalEarnings = 1800.0,
-                      freeFireUid = "548291048",
-                      pubgUid = "",
-                      isAdmin = false
+                    throw IllegalStateException(
+                      "Firebase Authentication সেটআপ নেই। Google সাইন-ইন চালু করা যায়নি।"
                     )
-                    onAuthSuccess(user)
                   }
                 } catch (e: GetCredentialException) {
                   isLoading = false
                   errorMessage = "Google সাইন-ইন প্রক্রিয়া সম্পন্ন হয়নি (${e.localizedMessage ?: "Cancelled"})."
                 } catch (e: Exception) {
                   isLoading = false
-                  // Fallback demo Google user so user is never blocked
-                  val demoUser = UserProfile(
-                    id = "user_001",
-                    username = "NoyonGamer_BD",
-                    fullName = "Mohammad Noyon",
-                    phone = "01798123456",
-                    email = "mohammadnoyon965@gmail.com",
-                    walletBalance = 450.0,
-                    isOnline = true,
-                    matchesPlayed = 48,
-                    wins = 32,
-                    totalEarnings = 4250.0,
-                    freeFireUid = "548291048",
-                    pubgUid = "5148209421",
-                    isAdmin = false
-                  )
-                  onAuthSuccess(demoUser)
+                  errorMessage = "Google সাইন-ইন ব্যর্থ হয়েছে। Firebase configuration ও Google Sign-In সেটিংস যাচাই করুন।"
+
                 }
               }
             },
