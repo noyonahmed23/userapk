@@ -14,7 +14,8 @@ class KheloBDRepository private constructor() {
 
   private val remoteClient = ApiStateClient()
   private val remoteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-  @Volatile private var remoteLoaded = false
+  @Volatile private var remoteReady = false
+  @Volatile private var lastSyncedState: RemoteAppState? = null
 
   companion object {
     @Volatile
@@ -27,22 +28,23 @@ class KheloBDRepository private constructor() {
     }
   }
 
+  // Production starts as a guest; account data must come from the backend.
   private val _currentUser = MutableStateFlow(
     UserProfile(
-      id = "user_001",
-      username = "NoyonGamer_BD",
-      fullName = "Mohammad Noyon",
-      phone = "01798123456",
-      email = "mohammadnoyon965@gmail.com",
-      walletBalance = 450.0,
-      isOnline = true,
-      matchesPlayed = 48,
-      wins = 32,
-      totalEarnings = 4250.0,
-      freeFireUid = "548291048",
-      pubgUid = "5148209421",
+      id = "guest",
+      username = "Guest",
+      fullName = "নতুন খেলোয়াড়",
+      phone = "",
+      email = "",
+      walletBalance = 0.0,
+      isOnline = false,
+      matchesPlayed = 0,
+      wins = 0,
+      totalEarnings = 0.0,
+      freeFireUid = "",
+      pubgUid = "",
       isAdmin = false,
-      userCode = "KB-9651"
+      userCode = "GUEST"
     )
   )
   val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
@@ -76,10 +78,10 @@ class KheloBDRepository private constructor() {
 
   private val _paymentSettings = MutableStateFlow(
     PaymentMethodSettings(
-      bkashNumber = "01798123456",
-      nagadNumber = "01798123456",
-      bkashInstruction = "বিকাশ অ্যাপ থেকে নিচের নম্বরে 'Send Money' করুন। এরপর আপনার প্রেরক নম্বর ও TrxID প্রদান করে রিকোয়েস্ট সাবমিট করুন।",
-      nagadInstruction = "নগদ অ্যাপ থেকে নিচের নম্বরে 'Send Money' করুন। এরপর আপনার প্রেরক নম্বর ও TrxID প্রদান করে রিকোয়েস্ট সাবমিট করুন।"
+      bkashNumber = "",
+      nagadNumber = "",
+      bkashInstruction = "এডমিন কর্তৃক বিকাশ পেমেন্ট নম্বর সেট করা হয়নি।",
+      nagadInstruction = "এডমিন কর্তৃক নগদ পেমেন্ট নম্বর সেট করা হয়নি।"
     )
   )
   val paymentSettings: StateFlow<PaymentMethodSettings> = _paymentSettings.asStateFlow()
@@ -88,360 +90,56 @@ class KheloBDRepository private constructor() {
   val depositRequests: StateFlow<List<DepositRequest>> = _depositRequests.asStateFlow()
 
   init {
-    loadSeedData()
+    loadProductionDefaults()
     startRemoteSync()
   }
 
-  private fun loadSeedData() {
+  private fun loadProductionDefaults() {
     _gameCategories.value = listOf(
       GameCategory(
         id = "freefire",
         name = "Free Fire",
-        activeTournamentsCount = 12,
+        activeTournamentsCount = 0,
         modes = listOf("Solo BR", "Duo BR", "Squad BR", "Clash Squad", "Lone Wolf"),
         iconEmoji = "🔥"
       ),
       GameCategory(
         id = "pubg",
         name = "PUBG Mobile",
-        activeTournamentsCount = 8,
+        activeTournamentsCount = 0,
         modes = listOf("BR Solo", "BR Duo", "BR Squad"),
         iconEmoji = "🎯"
       ),
       GameCategory(
         id = "dls",
         name = "DLS",
-        activeTournamentsCount = 5,
+        activeTournamentsCount = 0,
         modes = listOf("Solo", "Cup"),
         iconEmoji = "⚽"
       ),
       GameCategory(
         id = "efootball",
         name = "eFootball",
-        activeTournamentsCount = 6,
+        activeTournamentsCount = 0,
         modes = listOf("1v1", "League"),
         iconEmoji = "🏆"
       )
     )
+    _tournaments.value = emptyList()
+    _challenges.value = emptyList()
+    _teams.value = emptyList()
+    _teamChallenges.value = emptyList()
+    _transactions.value = emptyList()
+    _notifications.value = emptyList()
+    _banners.value = emptyList()
+    _topPlayers.value = emptyList()
+    _depositRequests.value = emptyList()
+  }
 
-    _banners.value = listOf(
-      BannerSlide(
-        id = "b1",
-        title = "গ্র্যান্ড মেগা টুর্নামেন্ট ২০২৬",
-        subtitle = "প্রাইজপুল ৫০,০০০ টাকা! এখনই স্লট বুক করুন।",
-        targetDestination = "tournaments"
-      ),
-      BannerSlide(
-        id = "b2",
-        title = "১ বনাম ১ ইনস্ট্যান্ট চ্যালেঞ্জ",
-        subtitle = "৫০ থেকে ২০০ টাকার চ্যালেঞ্জ খেলে তাৎক্ষণিক ক্যাশআউট নিন!",
-        targetDestination = "challenges"
-      ),
-      BannerSlide(
-        id = "b3",
-        title = "টপ স্কোয়াড চ্যাম্পিয়নশিপ",
-        subtitle = "আপনার টিম রেজিস্ট্রেশন করুন এবং লিডারবোর্ডের শীর্ষে পৌঁছান।",
-        targetDestination = "teams"
-      )
-    )
-
-    fun generateInitialSlots(totalSlots: Int, filledCount: Int): List<TournamentSlot> {
-      return (1..totalSlots).map { num ->
-        if (num <= filledCount) {
-          TournamentSlot(
-            slotNumber = num,
-            isFilled = true,
-            playerId = "player_$num",
-            playerName = if (num == 1) "Tahmid_Killer" else if (num == 2) "Rakib_Pro" else if (num == 3) "Sadman_Apex" else "Player_$num",
-            playerUid = "54829${1000 + num}"
-          )
-        } else {
-          TournamentSlot(
-            slotNumber = num,
-            isFilled = false
-          )
-        }
-      }
-    }
-
-    _tournaments.value = listOf(
-      Tournament(
-        id = "tour_101",
-        gameId = "freefire",
-        gameTitle = "Free Fire",
-        title = "Free Fire Live Match",
-        description = "48 player slots. Each slot holds one player; minimum 2 slots.",
-        mode = "Solo",
-        matchType = "Battle Royale",
-        teamSize = "1 player",
-        mapName = "Bermuda",
-        entryFee = 20.0,
-        prizePool = 600.0,
-        perKillPrize = 5.0,
-        maxSlots = 48,
-        joinedSlots = 24,
-        startTime = "STARTS Oct 7 • 8:45 PM (Starting now)",
-        status = TournamentStatus.LIVE,
-        rules = "01: Use the selected slot. Your slot number is saved with your tournament entry.\n02: Player details stay visible in the seat. Username, in-game name and small UID are shown after joining.\n03: Results update your wallet. Published rewards are recorded in your transaction history.",
-        prizePlace1 = 200.0,
-        prizePlace2 = 100.0,
-        prizePlace3 = 50.0,
-        slots = generateInitialSlots(48, 24)
-      ),
-      Tournament(
-        id = "tour_102",
-        gameId = "freefire",
-        gameTitle = "Free Fire",
-        title = "ক্লাশ স্কোয়াড ১v১ শোডাউন",
-        description = "48 player slots. Each slot holds one player; minimum 2 slots.",
-        mode = "Clash Squad 1v1",
-        matchType = "Single Match",
-        teamSize = "1 player",
-        mapName = "Bermuda",
-        entryFee = 50.0,
-        prizePool = 1500.0,
-        perKillPrize = 10.0,
-        maxSlots = 48,
-        joinedSlots = 18,
-        startTime = "আজ রাত ১০:১৫ টা",
-        status = TournamentStatus.JOIN_OPEN,
-        rules = "১. কোনো হ্যাক বা স্ক্রিপ্ট ব্যবহার করা যাবে না।\n২. হেডশট অনলি রুলস প্রযোজ্য।",
-        prizePlace1 = 500.0,
-        prizePlace2 = 300.0,
-        prizePlace3 = 150.0,
-        slots = generateInitialSlots(48, 18)
-      ),
-      Tournament(
-        id = "tour_103",
-        gameId = "pubg",
-        gameTitle = "PUBG Mobile",
-        title = "ইরাঙ্গেল সারভাইভার শোডাউন",
-        description = "48 player slots. Each slot holds one player; minimum 2 slots.",
-        mode = "BR Solo",
-        matchType = "Battle Royale",
-        teamSize = "1 player",
-        mapName = "Erangel",
-        entryFee = 80.0,
-        prizePool = 3200.0,
-        perKillPrize = 15.0,
-        maxSlots = 48,
-        joinedSlots = 30,
-        startTime = "আজ রাত ১১:০০ টা",
-        status = TournamentStatus.JOIN_OPEN,
-        rules = "১. এম্যুলেটর প্লেয়ার নিষিদ্ধ।\n২. লেভেল ৩০+ একাউন্ট বাধ্যতামূলক।",
-        prizePlace1 = 1200.0,
-        prizePlace2 = 600.0,
-        prizePlace3 = 300.0,
-        slots = generateInitialSlots(48, 30)
-      ),
-      Tournament(
-        id = "tour_106",
-        gameId = "freefire",
-        gameTitle = "Free Fire",
-        title = "সাপ্তাহিক ডুয়ো শোডাউন",
-        description = "48 player slots. Each slot holds one player; minimum 2 slots.",
-        mode = "Duo BR",
-        matchType = "Battle Royale",
-        teamSize = "2 players",
-        mapName = "Purgatory",
-        entryFee = 60.0,
-        prizePool = 2200.0,
-        perKillPrize = 10.0,
-        maxSlots = 48,
-        joinedSlots = 48,
-        startTime = "গতকাল রাত ১০:০০ টা",
-        status = TournamentStatus.FINISHED,
-        rules = "ম্যাচ সফলভাবে সমাপ্ত হয়েছে। পুরষ্কার দেওয়া হয়েছে।",
-        slots = generateInitialSlots(48, 48)
-      )
-    )
-
-    val now = System.currentTimeMillis()
-    _challenges.value = listOf(
-      PlayerChallenge(
-        id = "ch_201",
-        challengerId = "user_102",
-        challengerName = "Tahmid_Killer",
-        challengerIsOnline = true,
-        game = "Free Fire",
-        mode = "Lone Wolf",
-        mapName = "Iron Cage",
-        rule = ChallengeRule.HEADSHOT_ONLY,
-        amount = 100.0,
-        challengerNote = "অনলি এম১০১৪ এবং ডেজার্ট ঈগল। প্রো প্লেয়ার আসো!",
-        createdAtMillis = now - 180000,
-        expiresAtMillis = now + 420000, // 7 mins left
-        status = ChallengeStatus.OPEN
-      ),
-      PlayerChallenge(
-        id = "ch_202",
-        challengerId = "user_103",
-        challengerName = "Rakib_Sniper",
-        challengerIsOnline = true,
-        game = "Free Fire",
-        mode = "Clash Squad",
-        mapName = "Bermuda",
-        rule = ChallengeRule.REGULAR,
-        amount = 50.0,
-        challengerNote = "১v১ কাস্টম। নো গ্রেনেড।",
-        createdAtMillis = now - 300000,
-        expiresAtMillis = now + 300000, // 5 mins left
-        status = ChallengeStatus.OPEN
-      ),
-      PlayerChallenge(
-        id = "ch_203",
-        challengerId = "user_104",
-        challengerName = "Sadman_Shooter",
-        challengerIsOnline = false,
-        game = "PUBG Mobile",
-        mode = "TDM Warehouse",
-        mapName = "Warehouse",
-        rule = ChallengeRule.REGULAR,
-        amount = 150.0,
-        challengerNote = "এম৪১৬ অনলি, নো স্লাইড।",
-        createdAtMillis = now - 120000,
-        expiresAtMillis = now + 480000,
-        status = ChallengeStatus.OPEN
-      ),
-      PlayerChallenge(
-        id = "ch_204",
-        challengerId = "user_105",
-        challengerName = "Shakil_Boss",
-        challengerIsOnline = true,
-        game = "Free Fire",
-        mode = "Clash Squad",
-        mapName = "Bermuda",
-        rule = ChallengeRule.HEADSHOT_ONLY,
-        amount = 200.0,
-        challengerNote = "হাই স্টেক ১v১। প্রস্তুত থাকলে একসেপ্ট করুন।",
-        createdAtMillis = now - 600000,
-        expiresAtMillis = now + 600000,
-        status = ChallengeStatus.ACCEPTED,
-        opponentId = "user_001",
-        opponentName = "NoyonGamer_BD",
-        opponentIsOnline = true,
-        roomId = "8742195",
-        roomPassword = "789"
-      )
-    )
-
-    _teams.value = listOf(
-      Team(
-        id = "team_1",
-        name = "Cyber Hunters BD",
-        tag = "CHBD",
-        publicId = "CHBD-8841",
-        adminId = "user_001",
-        adminName = "Mohammad Noyon",
-        balance = 1200.0,
-        members = listOf(
-          TeamMember("user_001", "Mohammad Noyon", "টিম লিডার", true),
-          TeamMember("user_m2", "Sabbir Hossain", "কো-লিডার", true),
-          TeamMember("user_m3", "Arafat Rahman", "স্নাইপার", false),
-          TeamMember("user_m4", "Tanvir Ahmed", "রাশ প্লেয়ার", true)
-        ),
-        wins = 45,
-        matches = 58,
-        rating = 1840,
-        isLive = true
-      ),
-      Team(
-        id = "team_2",
-        name = "Viper Esports BD",
-        tag = "VIPER",
-        publicId = "VPR-3312",
-        adminId = "user_adm2",
-        adminName = "Fahim Hasan",
-        balance = 850.0,
-        members = listOf(
-          TeamMember("user_adm2", "Fahim Hasan", "টিম লিডার", true),
-          TeamMember("user_vm2", "Tamim Iqbal", "মেম্বার", true),
-          TeamMember("user_vm3", "Rafi Ahmed", "মেম্বার", false)
-        ),
-        wins = 38,
-        matches = 50,
-        rating = 1720,
-        isLive = true
-      ),
-      Team(
-        id = "team_3",
-        name = "Red Dragon Clan",
-        tag = "RDC",
-        publicId = "RDC-9921",
-        adminId = "user_adm3",
-        adminName = "Zubair Khan",
-        balance = 620.0,
-        members = listOf(
-          TeamMember("user_adm3", "Zubair Khan", "টিম লিডার", true),
-          TeamMember("user_rm2", "Kazi Nabil", "মেম্বার", true)
-        ),
-        wins = 31,
-        matches = 42,
-        rating = 1650,
-        isLive = true
-      )
-    )
-
-    _transactions.value = listOf(
-      WalletTransaction(
-        id = "tx_1",
-        title = "বিকাশ ডিপোজিট",
-        amount = 500.0,
-        type = "DEPOSIT",
-        paymentMethod = "bKash",
-        timestamp = "আজ দুপুর ২:৩০",
-        isCredit = true,
-        status = "সফল",
-        trxId = "BK89X412N"
-      ),
-      WalletTransaction(
-        id = "tx_2",
-        title = "সোলো টুর্নামেন্ট এন্ট্রি ফি",
-        amount = 50.0,
-        type = "TOURNAMENT_FEE",
-        paymentMethod = "Wallet",
-        timestamp = "আজ বিকাল ৫:১৫",
-        isCredit = false,
-        status = "সফল"
-      )
-    )
-
-    _notifications.value = listOf(
-      NotificationItem(
-        id = "notif_1",
-        title = "চ্যালেঞ্জ একসেপ্ট হয়েছে!",
-        message = "Shakil_Boss আপনার ২০০ টাকার চ্যালেঞ্জ গ্রহণ করেছেন। রুম আইডি দেখুন।",
-        timestamp = "১০ মিনিট আগে",
-        isRead = false,
-        targetType = "CHALLENGE",
-        targetId = "ch_204"
-      ),
-      NotificationItem(
-        id = "notif_2",
-        title = "টুর্নামেন্ট আপডেট",
-        message = "'রমজান মেগা ব্যাটল সোলো' ম্যাচ শুরু হতে আর মাত্র ৩০ মিনিট বাকি।",
-        timestamp = "১ ঘণ্টা আগে",
-        isRead = false,
-        targetType = "TOURNAMENT",
-        targetId = "tour_101"
-      ),
-      NotificationItem(
-        id = "notif_3",
-        title = "ডিপোজিট নিশ্চিতকরণ",
-        message = "আপনার ৫০০ টাকা সফলভাবে ওয়ালেটে যুক্ত হয়েছে।",
-        timestamp = "৩ ঘণ্টা আগে",
-        isRead = true,
-        targetType = "WALLET"
-      )
-    )
-
-    _topPlayers.value = listOf(
-      LeaderboardItem(1, "user_lp1", "Rifat_Apex", 112, 130, "86%", 3450, 15400.0, true),
-      LeaderboardItem(2, "user_lp2", "Mahin_King", 98, 118, "83%", 3120, 12800.0, true),
-      LeaderboardItem(3, "user_001", "NoyonGamer_BD", 32, 48, "67%", 2450, 4250.0, true),
-      LeaderboardItem(4, "user_lp3", "Hasan_Sniper", 64, 85, "75%", 2300, 8900.0, false),
-      LeaderboardItem(5, "user_lp4", "Jisan_Rush", 58, 80, "72%", 2150, 7800.0, true)
-    )
+  private fun isLegacyDemoState(state: RemoteAppState): Boolean {
+    return state.currentUser.id == "user_001" &&
+      state.currentUser.username == "NoyonGamer_BD" &&
+      state.tournaments.any { it.id == "tour_101" && it.title == "Free Fire Live Match" }
   }
 
   private fun snapshotState(): RemoteAppState = RemoteAppState(
@@ -476,15 +174,63 @@ class KheloBDRepository private constructor() {
 
   private fun startRemoteSync() {
     remoteScope.launch {
-      val state = remoteClient.load()
-      if (state != null) {
-        applyRemoteState(state)
+      // Never write local data until a successful server read proves the API is reachable.
+      // This prevents an offline launch from overwriting real database data with defaults.
+      while (isActive && !remoteReady) {
+        val result = remoteClient.loadResult()
+        if (!result.successful) {
+          delay(15000)
+          continue
+        }
+
+        val serverState = result.state
+        if (serverState != null && !isLegacyDemoState(serverState)) {
+          applyRemoteState(serverState)
+          lastSyncedState = snapshotState()
+          remoteReady = true
+        } else {
+          val cleanState = snapshotState()
+          if (serverState != null && !remoteClient.save(cleanState)) {
+            delay(10000)
+            continue
+          }
+          // state=null means a reachable, empty database; wait for real admin/user changes
+          // before creating the first row in app_state.
+          lastSyncedState = cleanState
+          remoteReady = true
+        }
       }
-      remoteLoaded = true
-      while (isActive) {
+
+      // Pull server changes when the local model is unchanged; push only locally changed data.
+      // Unlike the old unconditional POST loop, an idle app cannot overwrite another app's changes.
+      while (isActive && remoteReady) {
         delay(5000)
-        if (remoteLoaded) {
-          remoteClient.save(snapshotState())
+        val result = remoteClient.loadResult()
+        if (!result.successful) continue
+
+        val serverState = result.state
+        val localState = snapshotState()
+        val baseline = lastSyncedState ?: localState
+
+        if (serverState != null && isLegacyDemoState(serverState)) {
+          // A still-installed old demo build may rewrite its sample state. Clear it again.
+          if (localState != baseline) {
+            if (remoteClient.save(localState)) lastSyncedState = localState
+          } else {
+            if (remoteClient.save(localState)) lastSyncedState = localState
+          }
+          continue
+        }
+
+        if (serverState != baseline) {
+          if (localState == baseline) {
+            if (serverState != null) applyRemoteState(serverState)
+            lastSyncedState = snapshotState()
+          } else {
+            if (remoteClient.save(localState)) lastSyncedState = localState
+          }
+        } else if (localState != baseline) {
+          if (remoteClient.save(localState)) lastSyncedState = localState
         }
       }
     }
