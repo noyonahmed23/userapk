@@ -702,6 +702,7 @@ fun KheloBDApp() {
                   snackbarHostState.showSnackbar(result.getOrDefault("টিম চ্যালেঞ্জ পাঠানো হয়েছে!"))
                 }
               },
+              onNavigateToDeposit = { currentScreen = Screen.ACCOUNT },
               onPlayerClick = { userId, name ->
                 publicProfileUser = UserProfile(
                   id = userId,
@@ -771,7 +772,12 @@ fun KheloBDApp() {
               onNavigateToTournaments = { currentScreen = Screen.TOURNAMENTS },
               onNavigateToChallenges = { currentScreen = Screen.CHALLENGES },
               onNavigateToTeams = { currentScreen = Screen.TEAMS },
-              onNavigateToNotifications = { showNotificationsDialog = true }
+              onNavigateToNotifications = { showNotificationsDialog = true },
+              onNavigateToDeposit = { currentScreen = Screen.ACCOUNT },
+              onLogout = {
+                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                currentScreen = Screen.HOME
+              }
             )
           }
         }
