@@ -1,0 +1,6 @@
+{
+  "name": "KheloBD",
+  "description": "অনলাইন গেমিং টুর্নামেন্ট ও চ্যালেঞ্জ প্ল্যাটফর্ম (Free Fire, PUBG, DLS, eFootball)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

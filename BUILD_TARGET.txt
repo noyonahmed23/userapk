@@ -1,0 +1,3 @@
+USER APK
+Application ID: com.khelobd.esports
+Launcher: MainActivity
