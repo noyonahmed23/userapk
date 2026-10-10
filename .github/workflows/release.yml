@@ -31,8 +31,14 @@ jobs:
       - name: Configure Firebase Android app
         shell: bash
         run: |
-          test -n "$GOOGLE_SERVICES_JSON_BASE64" || { echo "::error::Missing repository secret GOOGLE_SERVICES_JSON_BASE64 (Base64 of the user app's google-services.json)."; exit 1; }
-          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+          elif [ -s app/google-services.json ]; then
+            echo "Using app/google-services.json already present in this repository."
+          else
+            echo "::error::Firebase config missing. Add user app's google-services.json at app/google-services.json or set GOOGLE_SERVICES_JSON_BASE64 in repository Actions secrets."
+            exit 1
+          fi
           test -s app/google-services.json || { echo "::error::Firebase config file is empty."; exit 1; }
 
       - name: Set up JDK 17
